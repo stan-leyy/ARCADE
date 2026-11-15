@@ -172,3 +172,64 @@ grant execute on function public.arcade_report_match(uuid, boolean, boolean) to 
 
 -- Fonction interne (déclencheur d'événement) : inutile et risquée à exposer via l'API.
 revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------- journal d'activité
+-- Statistiques anonymes : visites, parties, tentatives de connexion, type d'appareil.
+-- Ni e-mail ni adresse IP. Illisible depuis le jeu ; écriture par une fonction qui filtre et limite le débit.
+create table if not exists public.events (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  visitor uuid not null,
+  user_id uuid references auth.users (id) on delete set null,
+  kind text not null check (kind in ('visit', 'guest', 'signup', 'login', 'login_failed', 'cpu_end', 'online_end', 'room_create')),
+  device text,
+  os text,
+  browser text,
+  brand text,
+  model text,
+  data jsonb not null default '{}'::jsonb
+);
+create index if not exists events_at_idx on public.events (at desc);
+create index if not exists events_visitor_idx on public.events (visitor, at desc);
+create index if not exists events_kind_idx on public.events (kind, at desc);
+
+alter table public.events enable row level security;
+revoke all on public.events from anon, authenticated;
+
+create or replace function public.arcade_log_event(p_visitor uuid, p_kind text, p_device jsonb default '{}'::jsonb, p_data jsonb default '{}'::jsonb)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  v_dev jsonb := coalesce(p_device, '{}'::jsonb);
+  v_in jsonb := coalesce(p_data, '{}'::jsonb);
+  v_data jsonb;
+begin
+  if p_visitor is null or p_kind is null
+     or p_kind not in ('visit', 'guest', 'signup', 'login', 'login_failed', 'cpu_end', 'online_end', 'room_create') then
+    return;
+  end if;
+  if jsonb_typeof(v_dev) <> 'object' then v_dev := '{}'::jsonb; end if;
+  if jsonb_typeof(v_in) <> 'object' then v_in := '{}'::jsonb; end if;
+  -- limites de débit : 120 événements par heure et par visiteur, 300 par minute au total
+  if (select count(*) from public.events where visitor = p_visitor and at > now() - interval '1 hour') >= 120 then return; end if;
+  if (select count(*) from public.events where at > now() - interval '1 minute') >= 300 then return; end if;
+  v_data := jsonb_strip_nulls(jsonb_build_object(
+    'char', nullif(left(regexp_replace(coalesce(v_in->>'char', ''), '[^a-z]', '', 'g'), 12), ''),
+    'opp', nullif(left(regexp_replace(coalesce(v_in->>'opp', ''), '[^a-z]', '', 'g'), 12), ''),
+    'stage', nullif(left(regexp_replace(coalesce(v_in->>'stage', ''), '[^a-z]', '', 'g'), 12), ''),
+    'status', nullif(left(regexp_replace(coalesce(v_in->>'status', ''), '[^a-z]', '', 'g'), 12), ''),
+    'level', case when (v_in->>'level') ~ '^[0-2]$' then (v_in->>'level')::int end,
+    'secs', case when (v_in->>'secs') ~ '^[0-9]{1,4}$' then (v_in->>'secs')::int end,
+    'won', case when (v_in->>'won') in ('true', 'false') then (v_in->>'won')::boolean end));
+  insert into public.events (visitor, user_id, kind, device, os, browser, brand, model, data)
+  values (
+    p_visitor, (select auth.uid()), p_kind,
+    case when (v_dev->>'device') in ('phone', 'tablet', 'desktop') then v_dev->>'device' end,
+    nullif(left(regexp_replace(coalesce(v_dev->>'os', ''), '[^A-Za-z0-9 ._-]', '', 'g'), 24), ''),
+    nullif(left(regexp_replace(coalesce(v_dev->>'browser', ''), '[^A-Za-z0-9 ._-]', '', 'g'), 24), ''),
+    nullif(left(regexp_replace(coalesce(v_dev->>'brand', ''), '[^A-Za-z0-9 ._-]', '', 'g'), 24), ''),
+    nullif(left(regexp_replace(coalesce(v_dev->>'model', ''), '[^A-Za-z0-9 ._+()/-]', '', 'g'), 40), ''),
+    v_data);
+end $$;
+
+revoke execute on function public.arcade_log_event(uuid, text, jsonb, jsonb) from public;
+grant execute on function public.arcade_log_event(uuid, text, jsonb, jsonb) to anon, authenticated;

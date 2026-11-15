@@ -117,6 +117,8 @@
     endMatch(); G.mute = false; G.sfx(won ? 'ok' : 'gong');
     const mid = S.mode === 'online' ? S.mid : null, fair = !(M.net && M.net.taint);
     const pl = (n, w) => n + ' ' + w + (n > 1 ? 's' : '');
+    const secs = Math.min(9999, Math.round(M.tick / 60));
+    if (S.mode === 'cpu') N.log('cpu_end', { char: a.id, opp: b.id, stage: M.stage.def.id, level: S.level, won: !!won && M.final >= 0, secs });
     const big = $('#resBig'), draw = M.final < 0;
     $('#again').style.display = ''; $('#resChar').style.display = S.mode === 'cpu' ? '' : 'none';
     if (draw) { // aucun vainqueur : rien n'est enregistré
@@ -129,6 +131,7 @@
     if (N.sb && N.uid) {
       stat.textContent = mid ? 'Envoi du résultat au serveur…' : '';
       N.record(won, mid, fair).then((st) => {
+        if (mid || S.mode === 'online') N.log('online_end', { char: a.id, opp: b.id, stage: M.stage.def.id, won: !!won, secs, status: st });
         if (screen !== 'result') return;
         stat.textContent = st === 'local' ? 'Contre l’ordinateur : ' + pl(N.local.wins, 'victoire') + ' · ' + pl(N.local.losses, 'défaite') + ' sur cet appareil. Seuls les matchs en ligne comptent au classement.'
           : st === 'done' ? 'Match classé. Ton bilan : ' + bilan() + '.'
@@ -161,7 +164,7 @@
   async function makeRoom() {
     const code = N.newCode(); G.sfx('ok');
     try { S.sess = await N.join(code); } catch (_) { return openOnline('Impossible de créer un salon pour le moment. Réessaie dans un instant.'); }
-    S.host = true; S.sess.set({ nick: N.profile.nick, host: 1, rdy: 0 }); N.announce(code);
+    S.host = true; S.sess.set({ nick: N.profile.nick, host: 1, rdy: 0 }); N.announce(code); N.log('room_create');
     $('#onHome').style.display = 'none'; $('#onWait').style.display = ''; $('#codeOut').textContent = code.toUpperCase(); $('#waitNote').textContent = 'En attente d’un adversaire…';
     stopPoll(); pollId = setInterval(() => { if (S.sess && S.sess.opp()) { stopPoll(); N.announce(null); G.sfx('ok'); openChar(); } }, 300);
   }
@@ -251,7 +254,7 @@
     $('#nickOk').onclick = async () => { const b = $('#nickOk'); b.disabled = true; const r = await N.setNick($('#nickIn').value); b.disabled = false; if (r.ok) { G.sfx('ok'); goMenu(); } else $('#nickNote').textContent = r.msg; };
     $('#nickBtn').onclick = openNick;
     $('#authForm').addEventListener('submit', (e) => { e.preventDefault(); doAuth('in'); }); $('#authUp').onclick = () => doAuth('up');
-    $('#authGuest').onclick = () => { S.guest = true; G.sfx('ui'); enter(); };
+    $('#authGuest').onclick = () => { S.guest = true; G.sfx('ui'); N.log('guest'); enter(); };
     $('#authBtn').onclick = async () => { G.sfx('ui'); if (N.uid) { await N.signOut(); S.guest = false; } openAuth(); };
     $('#sndBtn').onclick = () => { G.audio.on = !G.audio.on; $('#sndBtn').textContent = 'Son : ' + (G.audio.on ? 'activé' : 'coupé'); G.sfx('ui'); };
     $$('[data-go]').forEach((b) => b.addEventListener('click', () => {
@@ -305,6 +308,7 @@
     buildSetup(); buildChars(); newAttract(); $('#hint').style.opacity = 1;
     if (!DEMO) requestAnimationFrame(frame);
     await N.init();
+    N.log('visit');
     ready = true; $('#press').textContent = body.classList.contains('touch') ? 'TOUCHE L’ÉCRAN POUR COMMENCER' : 'APPUIE SUR UNE TOUCHE POUR COMMENCER';
   }
   /* pilotage image par image (enregistrement de la démo, tests) */

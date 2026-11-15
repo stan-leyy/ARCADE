@@ -130,7 +130,7 @@ body.fight.touch #touch{display:block}
   <h1 class="jp logo">ARCADE</h1>
   <p class="tagline">LA VOIE DU NINJA</p>
   <p class="press" id="press">CHARGEMENT…</p>
-  <p class="foot">Jeu de combat · 6 ninjas · 3 arènes · contre l’ordinateur ou en ligne</p>
+  <p class="foot">Jeu de combat · 6 ninjas · 3 arènes · contre l’ordinateur ou en ligne<br>Le jeu enregistre des statistiques d’utilisation anonymes (visites, parties, type d’appareil).</p>
 </section>
 
 <section class="screen veil2" data-s="nick">
@@ -142,13 +142,13 @@ body.fight.touch #touch{display:block}
 
 <section class="screen veil2" data-s="auth">
   <h2 class="jp">Ton compte ninja</h2>
-  <p class="note">Connecte-toi pour jouer des matchs classés. Mot de passe : 8 caractères au moins.</p>
+  <p class="note">Première fois ici ? Saisis ton e-mail et un mot de passe (8 caractères au moins), puis clique sur « Créer un compte ».</p>
   <form id="authForm" class="col" novalidate>
     <input class="field" id="authMail" name="email" type="email" autocomplete="username" spellcheck="false" placeholder="E-MAIL" aria-label="Adresse e-mail" style="text-transform:none;letter-spacing:.04em">
     <input class="field" id="authPw" name="password" type="password" autocomplete="current-password" placeholder="MOT DE PASSE" aria-label="Mot de passe" style="text-transform:none;letter-spacing:.04em">
     <p class="note" id="authMsg" role="status"></p>
-    <button class="btn" id="authIn" type="submit">Se connecter</button>
-    <button class="btn alt" id="authUp" type="button">Créer un compte</button>
+    <button class="btn" id="authUp" type="button">Créer un compte</button>
+    <button class="btn alt" id="authIn" type="submit">J’ai déjà un compte : me connecter</button>
     <button class="btn alt sm" id="authGuest" type="button">Jouer en invité</button>
   </form>
 </section>

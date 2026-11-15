@@ -51,6 +51,34 @@
       leave() { return N.sb.removeChannel(ch); },
     };
   }
+  /* --- journal d'activité : type d'appareil, sans donnée personnelle --- */
+  function brandOf(os, model) {
+    const m = String(model || '');
+    if (os === 'iOS' || os === 'macOS') return 'Apple';
+    const table = [[/^(SM-|GT-|Galaxy)/i, 'Samsung'], [/^Pixel/i, 'Google'], [/TECNO/i, 'Tecno'], [/Infinix/i, 'Infinix'], [/^itel/i, 'Itel'], [/(Redmi|POCO|Xiaomi|^Mi |^M2\d|^2\d{3}[0-9A-Z]{4,})/i, 'Xiaomi'], [/(HUAWEI|^(ANE|ELE|VOG|MAR|JNY|STK)-)/i, 'Huawei'], [/HONOR/i, 'Honor'], [/^RMX/i, 'Realme'], [/(OPPO|^CPH)/i, 'Oppo'], [/(vivo|^V\d{4})/i, 'Vivo'], [/OnePlus/i, 'OnePlus'], [/(moto|^XT\d)/i, 'Motorola'], [/Nokia/i, 'Nokia']];
+    for (const [re, b] of table) if (re.test(m)) return b;
+    return '';
+  }
+  async function deviceInfo() {
+    const ua = navigator.userAgent || '', touch = (navigator.maxTouchPoints || 0) > 1;
+    let os = /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Macintosh/.test(ua) ? (touch ? 'iOS' : 'macOS') : /Linux/.test(ua) ? 'Linux' : 'Autre';
+    const tablet = /iPad|Tablet/.test(ua) || (/Macintosh/.test(ua) && touch) || (/Android/.test(ua) && !/Mobi/.test(ua));
+    const device = tablet ? 'tablet' : /Mobi|iPhone|Android/.test(ua) ? 'phone' : 'desktop';
+    const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /Firefox|FxiOS/.test(ua) ? 'Firefox' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : 'Autre';
+    let model = '';
+    try { if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) { const h = await navigator.userAgentData.getHighEntropyValues(['model']); model = h.model || ''; } } catch (_) {}
+    if (!model) { const m = ua.match(/Android [\d.]+; ([^;)]+?)(?: Build|\)|;)/); if (m && m[1].trim() !== 'K') model = m[1].trim(); }
+    if (!model && os === 'iOS') model = /iPad/.test(ua) || tablet ? 'iPad' : 'iPhone';
+    return { device, os, browser, brand: brandOf(os, model), model };
+  }
+  function visitorId() {
+    try {
+      let v = localStorage.getItem('arcade-visitor');
+      if (!UUID.test(v || '')) { v = crypto.randomUUID(); localStorage.setItem('arcade-visitor', v); }
+      return v;
+    } catch (_) { return null; }
+  }
+
   function loadScript(src) { return new Promise((res, rej) => { const e = document.createElement('script'); e.src = src; e.onload = res; e.onerror = rej; document.head.appendChild(e); }); }
 
   const N = (G.net = {
@@ -92,6 +120,17 @@
       } catch (_) {}
       N.profile.nick = cleanNick(N.profile.nick); N.profile.wins = +N.profile.wins || 0; N.profile.losses = +N.profile.losses || 0;
     },
+    /* Journal d'activité anonyme (visites, parties, tentatives de connexion). N'échoue jamais. */
+    dev: null, visitor: null,
+    async log(kind, data) {
+      if (!N.sb) return;
+      try {
+        if (!N.visitor) N.visitor = visitorId();
+        if (!N.visitor) return;
+        if (!N.dev) N.dev = await deviceInfo();
+        await N.sb.rpc('arcade_log_event', { p_visitor: N.visitor, p_kind: kind, p_device: N.dev, p_data: data || {} });
+      } catch (_) {}
+    },
     /* comptes (Supabase) : le mot de passe part directement chez Supabase, jamais ailleurs */
     async auth(mode, email, password) {
       if (!N.sb) return { ok: false, msg: 'La base de données n’est pas configurée.' };
@@ -100,9 +139,9 @@
       if (String(password || '').length < 8) return { ok: false, msg: 'Le mot de passe doit faire au moins 8 caractères.' };
       try {
         const r = mode === 'up' ? await N.sb.auth.signUp({ email, password }) : await N.sb.auth.signInWithPassword({ email, password });
-        if (r.error) { const m = String(r.error.message || ''); return { ok: false, msg: /invalid login/i.test(m) ? 'E-mail ou mot de passe incorrect.' : /already registered/i.test(m) ? 'Un compte existe déjà avec cet e-mail : connecte-toi.' : /not confirmed/i.test(m) ? 'Confirme d’abord ton adresse avec l’e-mail reçu.' : 'Connexion refusée : ' + m }; }
-        if (!r.data || !r.data.session) return { ok: false, msg: 'Compte créé. Confirme ton adresse avec l’e-mail reçu, puis connecte-toi.' };
-        N.uid = r.data.session.user.id; await N.loadProfile(); return { ok: true };
+        if (r.error) { const m = String(r.error.message || ''); if (mode !== 'up') N.log('login_failed'); return { ok: false, msg: /invalid login/i.test(m) ? 'E-mail ou mot de passe inconnu. Première fois ici ? Clique sur « Créer un compte ».' : /already registered/i.test(m) ? 'Un compte existe déjà avec cet e-mail : connecte-toi.' : /not confirmed/i.test(m) ? 'Confirme d’abord ton adresse avec l’e-mail reçu.' : 'Connexion refusée : ' + m }; }
+        if (!r.data || !r.data.session) { N.log('signup'); return { ok: false, msg: 'Compte créé. Confirme ton adresse avec l’e-mail reçu, puis connecte-toi.' }; }
+        N.uid = r.data.session.user.id; N.log(mode === 'up' ? 'signup' : 'login'); await N.loadProfile(); return { ok: true };
       } catch (_) { return { ok: false, msg: 'Le serveur est injoignable. Vérifie ta connexion et réessaie.' }; }
     },
     async signOut() { try { if (N.sb) await N.sb.auth.signOut(); } catch (_) {} N.uid = null; await N.loadProfile(); },

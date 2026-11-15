@@ -67,6 +67,8 @@ Le jeu choisit son mode tout seul :
 - **En-têtes de sécurité** dans `vercel.json` : politique de contenu stricte (scripts du site uniquement, connexions vers Supabase uniquement), interdiction d'affichage dans un cadre, HTTPS forcé.
 - `js/config.js` ne contient que l'adresse du projet et sa clé « publishable », faites pour être publiques. La clé `service_role` ne doit jamais se trouver dans ce dépôt.
 
+- **Journal d'activité anonyme** : visites, parties, tentatives de connexion et type d'appareil, sans e-mail ni adresse IP. Le jeu peut seulement y ajouter des lignes filtrées, à débit limité ; il ne peut pas le lire.
+
 Limite connue : les salons temps réel sont publics. Un tiers qui connaît le code d'un salon peut perturber un combat, mais pas gagner de points au classement.
 
 ## Mise en ligne

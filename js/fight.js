@@ -461,7 +461,8 @@
         this.setPhase('win');
       } else if (this.phase === 'win' && this.pt > 170) {
         const w = this.wins[0] >= this.need ? 0 : this.wins[1] >= this.need ? 1 : -1;
-        if (w >= 0) { if (!this.done) { this.done = true; this.final = w; if (this.o.onEnd) this.o.onEnd(w, this); } }
+        const tooLong = this.round >= this.need * 2 + 1; // égalités à répétition : match nul
+        if (w >= 0 || tooLong) { if (!this.done) { this.done = true; this.final = w; if (this.o.onEnd) this.o.onEnd(w, this); } }
         else if (host) { this.round++; this.setPhase('intro'); }
       }
     }

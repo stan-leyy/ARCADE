@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>ARCADE — La Voie du Ninja</title>
 <style>
@@ -139,6 +140,19 @@ body.fight.touch #touch{display:block}
   <button class="btn" id="nickOk">Entrer dans le dojo</button>
 </section>
 
+<section class="screen veil2" data-s="auth">
+  <h2 class="jp">Ton compte ninja</h2>
+  <p class="note">Connecte-toi pour jouer des matchs classés. Mot de passe : 8 caractères au moins.</p>
+  <form id="authForm" class="col" novalidate>
+    <input class="field" id="authMail" name="email" type="email" autocomplete="username" spellcheck="false" placeholder="E-MAIL" aria-label="Adresse e-mail" style="text-transform:none;letter-spacing:.04em">
+    <input class="field" id="authPw" name="password" type="password" autocomplete="current-password" placeholder="MOT DE PASSE" aria-label="Mot de passe" style="text-transform:none;letter-spacing:.04em">
+    <p class="note" id="authMsg" role="status"></p>
+    <button class="btn" id="authIn" type="submit">Se connecter</button>
+    <button class="btn alt" id="authUp" type="button">Créer un compte</button>
+    <button class="btn alt sm" id="authGuest" type="button">Jouer en invité</button>
+  </form>
+</section>
+
 <section class="screen veil" data-s="menu">
   <div class="who" id="who"></div>
   <h1 class="jp logo" style="font-size:calc(var(--u)*8)">ARCADE</h1>
@@ -148,7 +162,7 @@ body.fight.touch #touch{display:block}
     <button class="btn alt" data-go="board">Classement</button>
     <button class="btn alt" data-go="help">Commandes</button>
   </div>
-  <div class="row"><button class="btn alt sm" id="sndBtn">Son : activé</button><button class="btn alt sm" id="nickBtn">Changer de pseudo</button></div>
+  <div class="row"><button class="btn alt sm" id="sndBtn">Son : activé</button><button class="btn alt sm" id="nickBtn">Changer de pseudo</button><button class="btn alt sm" id="authBtn" style="display:none"></button></div>
 </section>
 
 <section class="screen veil2" data-s="setup">
@@ -246,6 +260,7 @@ body.fight.touch #touch{display:block}
 <script src="js/chars.js"></script>
 <script src="js/stages.js"></script>
 <script src="js/fight.js"></script>
+<script src="js/config.js"></script>
 <script src="js/net.js"></script>
 <script src="js/ui.js"></script>
 </body>

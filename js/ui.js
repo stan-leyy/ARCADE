@@ -76,7 +76,7 @@
       row.append('Adversaire : ');
       const mk = (lbl, v) => { const b = el('button', v === S.opp ? 'sel' : '', lbl); b.onclick = () => { S.opp = v; G.sfx('ui'); [...row.querySelectorAll('button')].forEach((x) => x.classList.toggle('sel', x === b)); }; row.appendChild(b); };
       mk('Aléatoire', -1); G.CHARS.forEach((c, i) => mk(c.name, i));
-    } else { $('#charOk').textContent = 'Prêt'; S.myRdy = false; S.sess.set({ rdy: 0, go: null, s: null, ch: null }); onlinePoll(); }
+    } else { $('#charOk').textContent = 'Prêt'; S.myRdy = false; S.sess.set({ rdy: 0, go: null, s: null, ch: null, mid: null }); onlinePoll(); }
   }
   function drawPrev() {
     const pc = $('#prev'), c = pc.getContext('2d'), ch = G.CHARS[S.ch];
@@ -115,10 +115,29 @@
   function result(won, M, meIdx) {
     const a = M.f[meIdx].ch, b = M.f[1 - meIdx].ch, w = M.wins;
     endMatch(); G.mute = false; G.sfx(won ? 'ok' : 'gong');
-    N.record(won);
-    const big = $('#resBig'); big.textContent = won ? 'VICTOIRE' : 'DÉFAITE'; big.className = 'jp big ' + (won ? 'win' : 'lose');
+    const mid = S.mode === 'online' ? S.mid : null, fair = !(M.net && M.net.taint);
+    const pl = (n, w) => n + ' ' + w + (n > 1 ? 's' : '');
+    const big = $('#resBig'), draw = M.final < 0;
+    $('#again').style.display = ''; $('#resChar').style.display = S.mode === 'cpu' ? '' : 'none';
+    if (draw) { // aucun vainqueur : rien n'est enregistré
+      big.textContent = 'ÉGALITÉ'; big.className = 'jp big lose'; $('#resSub').textContent = a.name + ' et ' + b.name + ' se neutralisent';
+      $('#resStat').textContent = 'Match nul : il ne compte pas.'; show('result'); return;
+    }
+    big.textContent = won ? 'VICTOIRE' : 'DÉFAITE'; big.className = 'jp big ' + (won ? 'win' : 'lose');
     $('#resSub').textContent = (won ? a.name + ' bat ' + b.name : b.name + ' bat ' + a.name) + ' — ' + Math.max(w[0], w[1]) + ' manche' + (Math.max(w[0], w[1]) > 1 ? 's' : '') + ' à ' + Math.min(w[0], w[1]);
-    $('#resStat').textContent = 'Ton bilan : ' + N.profile.wins + ' victoire' + (N.profile.wins > 1 ? 's' : '') + ' · ' + N.profile.losses + ' défaite' + (N.profile.losses > 1 ? 's' : '') + (N.cloud ? ' — enregistré dans le classement' : ' — enregistré sur cet appareil');
+    const stat = $('#resStat'), bilan = () => pl(N.profile.wins, 'victoire') + ' · ' + pl(N.profile.losses, 'défaite');
+    if (N.sb && N.uid) {
+      stat.textContent = mid ? 'Envoi du résultat au serveur…' : '';
+      N.record(won, mid, fair).then((st) => {
+        if (screen !== 'result') return;
+        stat.textContent = st === 'local' ? 'Contre l’ordinateur : ' + pl(N.local.wins, 'victoire') + ' · ' + pl(N.local.losses, 'défaite') + ' sur cet appareil. Seuls les matchs en ligne comptent au classement.'
+          : st === 'done' ? 'Match classé. Ton bilan : ' + bilan() + '.'
+          : st === 'playing' ? 'Résultat envoyé : il comptera dès que ton adversaire l’aura confirmé.'
+          : st === 'disputed' ? (fair ? 'Match non classé : les deux résultats ne concordent pas.' : 'Match non classé : une incohérence a été détectée pendant le combat.')
+          : st === 'capped' ? 'Match non classé : la limite est de 10 matchs classés par jour contre le même adversaire.'
+          : 'Match amical : il ne compte pas au classement.';
+      });
+    } else { N.record(won); stat.textContent = 'Ton bilan : ' + bilan() + (N.cloud ? ' — enregistré dans le classement' : ' — enregistré sur cet appareil'); }
     $('#again').style.display = ''; $('#resChar').style.display = S.mode === 'cpu' ? '' : 'none';
     show('result');
   }
@@ -131,7 +150,7 @@
     leaveSess(); S.mode = 'online'; show('online'); $('#onHome').style.display = ''; $('#onWait').style.display = 'none';
     $('#onNote').textContent = msg || (N.mock
       ? 'Mode test : ici, le jeu en ligne relie deux onglets du même navigateur. Sur la page publiée, il relie les joueurs qui y ont accès.'
-      : 'Crée un salon et donne le code à ton adversaire, ou rejoins un salon ouvert. Chaque joueur doit avoir accès à cette page.');
+      : N.sb ? 'Crée un salon et donne le code à ton adversaire, ou rejoins un salon ouvert.' : 'Crée un salon et donne le code à ton adversaire, ou rejoins un salon ouvert. Chaque joueur doit avoir accès à cette page.');
     N.announce(null); drawRooms(); if (roomsId) clearInterval(roomsId); roomsId = setInterval(() => { if (screen === 'online') drawRooms(); else { clearInterval(roomsId); roomsId = null; } }, 1000);
   }
   function drawRooms() {
@@ -168,8 +187,14 @@
       const nick = String(o.nick || 'NINJA').slice(0, 12);
       $('#charNote').textContent = 'Adversaire : ' + nick + ' — ' + (o.rdy ? 'prêt' : 'choisit son ninja…');
       const oc = G.CHARS.findIndex((c) => c.id === o.ch);
-      if (S.host && S.myRdy && o.rdy && oc >= 0) { const go = Date.now(), st = (Math.random() * G.STAGES.length) | 0; S.sess.set({ go, stage: st }); stopPoll(); startOnline(st, oc, nick); }
-      else if (!S.host && S.myRdy && o.go && o.go !== S.lastGo && oc >= 0) { S.lastGo = o.go; stopPoll(); startOnline(G.clamp(o.stage | 0, 0, G.STAGES.length - 1), oc, nick); }
+      if (S.host && S.myRdy && o.rdy && oc >= 0) {
+        stopPoll(); const sess = S.sess, st = (Math.random() * G.STAGES.length) | 0; S.mid = null;
+        N.createMatch().then((mid) => { if (S.sess !== sess) return; S.mid = mid; sess.set({ go: Date.now(), stage: st, mid: mid || null }); startOnline(st, oc, nick); });
+      } else if (!S.host && S.myRdy && o.go && o.go !== S.lastGo && oc >= 0) {
+        S.lastGo = o.go; stopPoll(); S.mid = null;
+        if (typeof o.mid === 'string') { const mid = o.mid; N.joinMatch(mid).then((ok) => { if (ok) S.mid = mid; }); }
+        startOnline(G.clamp(o.stage | 0, 0, G.STAGES.length - 1), oc, nick);
+      }
     }, 250);
   }
   function startOnline(stage, oc, oppNick) {
@@ -180,6 +205,7 @@
       if (!S.sess) return;
       const m = fight({ stage: G.STAGES[stage], chars, names, ctrl: S.host ? ['human', 'remote'] : ['remote', 'human'], net: new G.NetCtl(S.sess, S.host, me) }, me);
       m.o.onAbort = () => { endMatch(); openOnline('Ton adversaire s’est déconnecté. Le combat est annulé.'); };
+      m.o.onCheat = () => { const mid = S.mid; endMatch(); if (mid) N.record(false, mid, false); openOnline('Une incohérence a été détectée chez ton adversaire : le match est annulé et ne compte pas.'); };
     });
   }
 
@@ -189,21 +215,31 @@
     const rows = await N.board(); if (screen !== 'board') return;
     if (!rows) { $('#boardNote').textContent = 'Le classement est injoignable pour le moment.'; return; }
     rows.forEach((r, i) => { const tr = el('tr', r.me ? 'me' : ''); tr.append(el('td', '', i + 1), el('td', '', r.nick), el('td', 'n', r.wins), el('td', 'n', r.losses)); tb.appendChild(tr); });
-    $('#boardNote').textContent = N.cloud ? (rows.length ? 'Les dix meilleurs ninjas de cette page.' : 'Aucun combat enregistré pour le moment.') : 'Hors connexion : seul ton profil apparaît ici. Le classement partagé fonctionne sur la page publiée.';
+    $('#boardNote').textContent = (N.cloud || N.sb) ? (rows.length ? (N.sb ? 'Les dix meilleurs ninjas. Seuls les matchs en ligne confirmés par les deux joueurs comptent.' : 'Les dix meilleurs ninjas.') : 'Aucun combat enregistré pour le moment.') : 'Hors connexion : seul ton profil apparaît ici.';
   }
 
   /* ---------- navigation ---------- */
   function goMenu() {
     leaveSess(); if (match) endMatch(); G.mute = true;
-    const w = $('#who'); w.textContent = ''; w.append(el('b', '', N.profile.nick || 'NINJA'), el('br'), N.profile.wins + ' V · ' + N.profile.losses + ' D' + (N.cloud ? '' : ' · invité'));
+    const w = $('#who'); w.textContent = ''; w.append(el('b', '', N.profile.nick || 'NINJA'), el('br'), (N.sb && N.uid ? 'Classé : ' : '') + N.profile.wins + ' V · ' + N.profile.losses + ' D' + (N.cloud ? '' : ' · invité'));
+    if (N.sb && N.uid) N.refreshStats().then(() => { if (screen === 'menu' && w.lastChild) w.lastChild.textContent = 'Classé : ' + N.profile.wins + ' V · ' + N.profile.losses + ' D'; });
+    const ab = $('#authBtn'); ab.style.display = N.backend === 'supabase' ? '' : 'none'; ab.textContent = N.uid ? 'Se déconnecter' : 'Se connecter';
     show('menu');
   }
   function openNick() {
     show('nick'); $('#nickIn').value = N.profile.nick || '';
-    $('#nickNote').textContent = N.cloud ? 'Tu es connecté avec ton compte Claude : tes victoires seront enregistrées dans le classement.' : 'Mode invité : ton profil est enregistré sur cet appareil.';
+    $('#nickNote').textContent = N.cloud ? 'Tu es connecté : tes victoires seront enregistrées dans le classement.' : 'Mode invité : ton profil est enregistré sur cet appareil.';
     if (!body.classList.contains('touch')) $('#nickIn').focus();
   }
-  function fromTitle() { if (!ready || screen !== 'title') return; G.startAudio(); G.sfx('ok'); if (N.profile.nick) goMenu(); else openNick(); }
+  function enter() { if (N.profile.nick) goMenu(); else openNick(); }
+  function openAuth() { show('auth'); $('#authMsg').textContent = ''; $('#authPw').value = ''; }
+  async function doAuth(mode) {
+    const btns = [$('#authIn'), $('#authUp'), $('#authGuest')]; btns.forEach((b) => (b.disabled = true)); $('#authMsg').textContent = 'Connexion…';
+    const r = await N.auth(mode, $('#authMail').value, $('#authPw').value);
+    btns.forEach((b) => (b.disabled = false)); $('#authPw').value = '';
+    if (r.ok) { G.sfx('ok'); enter(); } else $('#authMsg').textContent = r.msg;
+  }
+  function fromTitle() { if (!ready || screen !== 'title') return; G.startAudio(); G.sfx('ok'); if (N.backend === 'supabase' && !N.uid && !S.guest) openAuth(); else enter(); }
   function togglePause() {
     if (screen === 'fight') { if (S.mode === 'cpu') paused = true; show('pause'); }
     else if (screen === 'pause') { paused = false; show('fight'); }
@@ -212,8 +248,11 @@
     $('[data-s=title]').addEventListener('pointerdown', fromTitle);
     G.input.anyKeyCb = (e) => { if (screen === 'title') fromTitle(); else if (e.code === 'Escape' || e.code === 'KeyP') togglePause(); else if (e.code === 'Enter' && screen === 'nick') $('#nickOk').click(); };
     $('#nickIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#nickOk').click(); });
-    $('#nickOk').onclick = () => { N.setNick($('#nickIn').value); G.sfx('ok'); goMenu(); };
+    $('#nickOk').onclick = async () => { const b = $('#nickOk'); b.disabled = true; const r = await N.setNick($('#nickIn').value); b.disabled = false; if (r.ok) { G.sfx('ok'); goMenu(); } else $('#nickNote').textContent = r.msg; };
     $('#nickBtn').onclick = openNick;
+    $('#authForm').addEventListener('submit', (e) => { e.preventDefault(); doAuth('in'); }); $('#authUp').onclick = () => doAuth('up');
+    $('#authGuest').onclick = () => { S.guest = true; G.sfx('ui'); enter(); };
+    $('#authBtn').onclick = async () => { G.sfx('ui'); if (N.uid) { await N.signOut(); S.guest = false; } openAuth(); };
     $('#sndBtn').onclick = () => { G.audio.on = !G.audio.on; $('#sndBtn').textContent = 'Son : ' + (G.audio.on ? 'activé' : 'coupé'); G.sfx('ui'); };
     $$('[data-go]').forEach((b) => b.addEventListener('click', () => {
       const g = b.dataset.go; G.startAudio(); G.sfx('ui');

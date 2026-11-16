@@ -1,0 +1,2 @@
+Place ici tes musiques et bruitages (mp3/ogg) puis liste-les dans js/config.js.
+N’utilise que des sons dont tu as les droits.

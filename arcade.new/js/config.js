@@ -10,8 +10,8 @@ window.ARCADE_CONFIG = {
      Utilise uniquement des sons dont tu as les droits (libres de droits ou achetés avec licence).
      menu : joués à tour de rôle avec 3 s de pause · fight : fond sonore des combats · hit : bruit des coups */
   audio: {
-    menu: [],   // ex. ['audio/menu-1.mp3', 'audio/menu-2.mp3']
-    fight: [],  // ex. ['audio/combat.mp3']
-    hit: [],    // ex. ['audio/coup.mp3']
+    menu: ['audio/menu-1.mp3', 'audio/menu-2.mp3'],
+    fight: ['audio/combat.mp3'],
+    hit: ['audio/coup-1.mp3', 'audio/coup-2.mp3', 'audio/coup-3.mp3', 'audio/coup-4.mp3'],
   },
 };

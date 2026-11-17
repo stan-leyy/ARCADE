@@ -140,6 +140,7 @@
       try {
         const r = mode === 'up' ? await N.sb.auth.signUp({ email, password }) : await N.sb.auth.signInWithPassword({ email, password });
         if (r.error) { const m = String(r.error.message || ''); if (mode !== 'up') N.log('login_failed'); return { ok: false, msg: /invalid login/i.test(m) ? 'E-mail ou mot de passe inconnu. Première fois ici ? Clique sur « Créer un compte ».' : /already registered/i.test(m) ? 'Un compte existe déjà avec cet e-mail : connecte-toi.' : /not confirmed/i.test(m) ? 'Confirme d’abord ton adresse avec l’e-mail reçu.' : 'Connexion refusée : ' + m }; }
+        if (mode === 'up' && r.data && r.data.user && Array.isArray(r.data.user.identities) && !r.data.user.identities.length) return { ok: false, msg: 'Un compte existe déjà avec cet e-mail : clique sur « J’ai déjà un compte : me connecter ».' };
         if (!r.data || !r.data.session) { N.log('signup'); return { ok: false, msg: 'Compte créé. Confirme ton adresse avec l’e-mail reçu, puis connecte-toi.' }; }
         N.uid = r.data.session.user.id; N.log(mode === 'up' ? 'signup' : 'login'); await N.loadProfile(); return { ok: true };
       } catch (_) { return { ok: false, msg: 'Le serveur est injoignable. Vérifie ta connexion et réessaie.' }; }

@@ -127,7 +127,7 @@
     return match;
   }
   function endMatch() {
-    match = null; G.mute = true;
+    match = null; G.mute = true; $('#tut').classList.remove('hide');
     if (tut) { tut.end(); tut = null; } body.classList.remove('tuto');
     if (!attract || attract.done) newAttract();
   }
@@ -307,13 +307,14 @@
   function fromTitle() {
     if (!ready || screen !== 'title') return;
     G.startAudio(); goLandscape(); G.sfx('ok');
+    menuMusic();
     if (!lsGet(LS.onboarded) && !N.uid) startCine(false);
     else if (needAccount()) { openAuth(true); menuMusic(); }
     else enter();
   }
   function togglePause() {
-    if (screen === 'fight') { if (S.mode !== 'online') paused = true; show('pause'); }
-    else if (screen === 'pause') { paused = false; show('fight'); if (tut) body.classList.add('tuto'); }
+    if (screen === 'fight') { if (S.mode !== 'online') paused = true; show('pause'); $('#tut').classList.add('hide'); }
+    else if (screen === 'pause') { paused = false; show('fight'); $('#tut').classList.remove('hide'); if (tut) body.classList.add('tuto'); }
   }
 
   /* ---------- mise à jour disponible ---------- */
